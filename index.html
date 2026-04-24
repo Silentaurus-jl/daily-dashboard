@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daily Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --personal: #6366f1;
+      --work: #10b981;
+      --reminder: #f59e0b;
+      --bg: #f1f5f9;
+      --card: #ffffff;
+      --text: #1e293b;
+      --muted: #64748b;
+      --border: #e2e8f0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 0.875rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      gap: 1rem;
+    }
+    .logo { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.02em; }
+    .header-right { display: flex; align-items: center; gap: 1rem; }
+    #current-date { font-size: 0.8rem; color: var(--muted); }
+    .refresh-btn {
+      background: none; border: 1px solid var(--border);
+      padding: 0.35rem 0.75rem; border-radius: 6px;
+      cursor: pointer; font-size: 0.8rem; color: var(--muted);
+      transition: background 0.15s;
+    }
+    .refresh-btn:hover { background: var(--bg); }
+
+    /* ── Layout ── */
+    .container { max-width: 1100px; margin: 0 auto; padding: 1.75rem 1.5rem; }
+
+    /* ── Stats ── */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 0.75rem;
+      margin-bottom: 1.75rem;
+    }
+    @media (max-width: 700px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      text-align: center;
+    }
+    .stat-num { font-size: 1.75rem; font-weight: 700; line-height: 1; }
+    .stat-label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 0.3rem; }
+    .stat-card.urgent .stat-num { color: #dc2626; }
+
+    /* ── Filters ── */
+    .filters { display: flex; gap: 0.5rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+    .filter-btn {
+      padding: 0.35rem 0.9rem; border-radius: 20px;
+      border: 1px solid var(--border); background: var(--card);
+      cursor: pointer; font-size: 0.8rem; color: var(--muted);
+      transition: all 0.15s;
+    }
+    .filter-btn.active                          { background: var(--text); color: #fff; border-color: var(--text); }
+    .filter-btn[data-cat="personal"].active     { background: var(--personal); border-color: var(--personal); }
+    .filter-btn[data-cat="work"].active         { background: var(--work); border-color: var(--work); }
+    .filter-btn[data-cat="reminder"].active     { background: var(--reminder); border-color: var(--reminder); }
+
+    /* ── Section label ── */
+    .section-label {
+      font-size: 0.7rem; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.75rem;
+    }
+
+    /* ── Task grid ── */
+    .tasks-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 0.875rem;
+      margin-bottom: 1.75rem;
+    }
+
+    /* ── Task card ── */
+    .task-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--border);
+      border-radius: 10px;
+      padding: 1.1rem 1.25rem;
+      display: flex; flex-direction: column; gap: 0.5rem;
+      transition: box-shadow 0.15s, transform 0.15s;
+    }
+    .task-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.07); transform: translateY(-1px); }
+    .task-card[data-cat="personal"] { border-left-color: var(--personal); }
+    .task-card[data-cat="work"]     { border-left-color: var(--work); }
+    .task-card[data-cat="reminder"] { border-left-color: var(--reminder); }
+    .task-card.expired              { opacity: 0.55; }
+
+    .task-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
+    .task-title { font-weight: 600; font-size: 0.9rem; line-height: 1.4; flex: 1; }
+
+    .cat-badge {
+      font-size: 0.65rem; font-weight: 600; padding: 0.2rem 0.55rem;
+      border-radius: 10px; white-space: nowrap; flex-shrink: 0;
+    }
+    .cat-personal { background: #eef2ff; color: var(--personal); }
+    .cat-work     { background: #d1fae5; color: #065f46; }
+    .cat-reminder { background: #fef3c7; color: #92400e; }
+
+    .task-desc { font-size: 0.8rem; color: var(--muted); line-height: 1.5; }
+
+    .task-footer { display: flex; justify-content: space-between; align-items: center; margin-top: auto; }
+
+    .expiry-pill {
+      font-size: 0.7rem; font-weight: 500;
+      padding: 0.2rem 0.55rem; border-radius: 10px;
+    }
+    .exp-safe   { background: #d1fae5; color: #065f46; }
+    .exp-warn   { background: #fef3c7; color: #92400e; }
+    .exp-danger { background: #fee2e2; color: #991b1b; }
+    .exp-none   { background: #f1f5f9; color: var(--muted); }
+
+    .created-date { font-size: 0.7rem; color: var(--muted); }
+
+    /* ── Expired toggle ── */
+    .expired-toggle-btn {
+      background: none; border: 1px solid var(--border);
+      padding: 0.45rem 1rem; border-radius: 8px;
+      cursor: pointer; font-size: 0.8rem; color: var(--muted);
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      margin-bottom: 0.75rem;
+    }
+    .expired-toggle-btn:hover { background: var(--card); }
+
+    /* ── Empty / Loading ── */
+    .empty {
+      grid-column: 1 / -1; text-align: center;
+      padding: 2.5rem 1rem; color: var(--muted);
+    }
+    .empty-icon { font-size: 2rem; margin-bottom: 0.4rem; }
+    .loading { text-align: center; padding: 2.5rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Daily Dashboard</div>
+  <div class="header-right">
+    <span id="current-date"></span>
+    <button class="refresh-btn" onclick="loadTasks()">&#8635; Refresh</button>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat-card"><div class="stat-num" id="s-total">—</div><div class="stat-label">Active</div></div>
+    <div class="stat-card"><div class="stat-num" id="s-personal">—</div><div class="stat-label">Personal</div></div>
+    <div class="stat-card"><div class="stat-num" id="s-work">—</div><div class="stat-label">Work</div></div>
+    <div class="stat-card"><div class="stat-num" id="s-reminder">—</div><div class="stat-label">Reminders</div></div>
+    <div class="stat-card urgent"><div class="stat-num" id="s-urgent">—</div><div class="stat-label">Due Soon</div></div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters">
+    <button class="filter-btn active" data-cat="all"      onclick="setFilter('all')">All</button>
+    <button class="filter-btn"        data-cat="personal" onclick="setFilter('personal')">Personal</button>
+    <button class="filter-btn"        data-cat="work"     onclick="setFilter('work')">Work</button>
+    <button class="filter-btn"        data-cat="reminder" onclick="setFilter('reminder')">Reminder</button>
+  </div>
+
+  <!-- Active tasks -->
+  <div class="section-label">Active Tasks</div>
+  <div class="tasks-grid" id="active-grid">
+    <div class="loading">Loading tasks…</div>
+  </div>
+
+  <!-- Expired tasks -->
+  <button class="expired-toggle-btn" onclick="toggleExpired()">
+    <span id="exp-arrow">▶</span> Expired Tasks (<span id="exp-count">0</span>)
+  </button>
+  <div class="tasks-grid" id="expired-grid" style="display:none"></div>
+
+</div>
+
+<script>
+const REPO = 'Silentaurus-jl/daily-dashboard';
+const RAW  = `https://raw.githubusercontent.com/${REPO}/main/tasks.json`;
+
+let active  = [];
+let expired = [];
+let filter  = 'all';
+let showExp = false;
+
+/* ── Date helpers ── */
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+function daysLeft(exp) {
+  if (!exp) return null;
+  const d = Math.ceil((new Date(exp) - new Date(today())) / 86400000);
+  return d;
+}
+function expiryInfo(exp, isExpired) {
+  if (isExpired) return { text: `Expired ${exp}`, cls: 'exp-danger' };
+  const d = daysLeft(exp);
+  if (d === null)  return { text: 'No expiry',      cls: 'exp-none'   };
+  if (d < 0)       return { text: `${Math.abs(d)}d overdue`, cls: 'exp-danger' };
+  if (d === 0)     return { text: 'Due today',       cls: 'exp-danger' };
+  if (d === 1)     return { text: 'Due tomorrow',    cls: 'exp-warn'   };
+  if (d <= 7)      return { text: `${d}d left`,      cls: 'exp-warn'   };
+  return             { text: `${d}d left`,            cls: 'exp-safe'   };
+}
+
+/* ── Card builder ── */
+function card(task, isExpired = false) {
+  const { text, cls } = expiryInfo(task.expires, isExpired);
+  const desc = task.description
+    ? `<div class="task-desc">${task.description}</div>` : '';
+  return `
+    <div class="task-card${isExpired ? ' expired' : ''}" data-cat="${task.category}">
+      <div class="task-top">
+        <div class="task-title">${task.title}</div>
+        <span class="cat-badge cat-${task.category}">${task.category}</span>
+      </div>
+      ${desc}
+      <div class="task-footer">
+        <span class="expiry-pill ${cls}">${text}</span>
+        <span class="created-date">${task.created}</span>
+      </div>
+    </div>`;
+}
+
+/* ── Render ── */
+function render() {
+  const filtered = filter === 'all' ? active : active.filter(t => t.category === filter);
+  const grid = document.getElementById('active-grid');
+  grid.innerHTML = filtered.length
+    ? filtered.map(t => card(t)).join('')
+    : `<div class="empty"><div class="empty-icon">✓</div>No tasks here.</div>`;
+
+  document.getElementById('s-total').textContent    = active.length;
+  document.getElementById('s-personal').textContent = active.filter(t => t.category === 'personal').length;
+  document.getElementById('s-work').textContent     = active.filter(t => t.category === 'work').length;
+  document.getElementById('s-reminder').textContent = active.filter(t => t.category === 'reminder').length;
+  document.getElementById('s-urgent').textContent   = active.filter(t => { const d = daysLeft(t.expires); return d !== null && d >= 0 && d <= 3; }).length;
+
+  document.getElementById('exp-count').textContent = expired.length;
+  const expGrid = document.getElementById('expired-grid');
+  expGrid.innerHTML = expired.length
+    ? expired.map(t => card(t, true)).join('')
+    : `<div class="empty"><div class="empty-icon">✓</div>No expired tasks.</div>`;
+}
+
+function setFilter(cat) {
+  filter = cat;
+  document.querySelectorAll('.filter-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.cat === cat));
+  render();
+}
+
+function toggleExpired() {
+  showExp = !showExp;
+  document.getElementById('expired-grid').style.display = showExp ? 'grid' : 'none';
+  document.getElementById('exp-arrow').textContent = showExp ? '▼' : '▶';
+}
+
+/* ── Fetch ── */
+async function loadTasks() {
+  try {
+    const res  = await fetch(RAW + '?t=' + Date.now());
+    const data = await res.json();
+    active  = data.tasks   || [];
+    expired = data.expired || [];
+    render();
+  } catch {
+    document.getElementById('active-grid').innerHTML =
+      `<div class="empty"><div class="empty-icon">⚠️</div>Could not load tasks. Check your connection.</div>`;
+  }
+}
+
+/* ── Init ── */
+document.getElementById('current-date').textContent =
+  new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+loadTasks();
+setInterval(loadTasks, 5 * 60 * 1000);
+</script>
+</body>
+</html>

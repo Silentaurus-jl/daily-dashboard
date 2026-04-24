@@ -1,0 +1,25 @@
+name: Expire Tasks
+
+on:
+  schedule:
+    - cron: '0 1 * * *'   # Daily at 01:00 UTC
+  workflow_dispatch:        # Allow manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  expire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Move expired tasks
+        run: python3 scripts/expire_tasks.py
+
+      - name: Commit if anything changed
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name  "github-actions[bot]"
+          git add tasks.json
+          git diff --staged --quiet || (git commit -m "chore: auto-expire tasks" && git push)
