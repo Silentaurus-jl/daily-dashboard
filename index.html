@@ -18,6 +18,52 @@
       --border: #e2e8f0;
     }
 
+    /* ── PIN screen ── */
+    #pin-screen {
+      position: fixed; inset: 0; z-index: 9999;
+      background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .pin-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2.5rem 2rem;
+      width: 100%; max-width: 340px;
+      text-align: center;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+    }
+    .pin-icon { font-size: 2rem; margin-bottom: 0.75rem; }
+    .pin-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.35rem; }
+    .pin-sub   { font-size: 0.8rem; color: var(--muted); margin-bottom: 1.5rem; }
+    .pin-dots  { display: flex; justify-content: center; gap: 0.6rem; margin-bottom: 1.5rem; }
+    .pin-dot {
+      width: 14px; height: 14px; border-radius: 50%;
+      border: 2px solid var(--border); background: transparent;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .pin-dot.filled { background: var(--text); border-color: var(--text); }
+    .pin-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem;
+      margin-bottom: 1rem;
+    }
+    .pin-key {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.9rem;
+      font-size: 1.1rem; font-weight: 600; cursor: pointer;
+      transition: background 0.12s;
+      user-select: none;
+    }
+    .pin-key:hover  { background: #e2e8f0; }
+    .pin-key:active { background: #cbd5e1; }
+    .pin-key.wide   { grid-column: span 2; }
+    .pin-error { font-size: 0.8rem; color: #dc2626; min-height: 1.2em; margin-bottom: 0.5rem; }
+    .pin-change-link {
+      font-size: 0.75rem; color: var(--muted); cursor: pointer;
+      text-decoration: underline; text-underline-offset: 2px;
+      background: none; border: none; margin-top: 0.5rem;
+    }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: var(--bg);
@@ -161,6 +207,37 @@
 </head>
 <body>
 
+<!-- PIN screen (hidden once unlocked) -->
+<div id="pin-screen">
+  <div class="pin-box">
+    <div class="pin-icon">🔒</div>
+    <div class="pin-title" id="pin-title">Daily Dashboard</div>
+    <div class="pin-sub"  id="pin-sub">Enter your PIN to continue</div>
+    <div class="pin-dots" id="pin-dots">
+      <div class="pin-dot" id="d0"></div>
+      <div class="pin-dot" id="d1"></div>
+      <div class="pin-dot" id="d2"></div>
+      <div class="pin-dot" id="d3"></div>
+    </div>
+    <div class="pin-error" id="pin-error"></div>
+    <div class="pin-grid">
+      <button class="pin-key" onclick="pinKey('1')">1</button>
+      <button class="pin-key" onclick="pinKey('2')">2</button>
+      <button class="pin-key" onclick="pinKey('3')">3</button>
+      <button class="pin-key" onclick="pinKey('4')">4</button>
+      <button class="pin-key" onclick="pinKey('5')">5</button>
+      <button class="pin-key" onclick="pinKey('6')">6</button>
+      <button class="pin-key" onclick="pinKey('7')">7</button>
+      <button class="pin-key" onclick="pinKey('8')">8</button>
+      <button class="pin-key" onclick="pinKey('9')">9</button>
+      <button class="pin-key" onclick="pinKey('del')">⌫</button>
+      <button class="pin-key" onclick="pinKey('0')">0</button>
+      <button class="pin-key" onclick="pinKey('ok')">OK</button>
+    </div>
+    <button class="pin-change-link" id="pin-change-btn" onclick="pinStartChange()">Change PIN</button>
+  </div>
+</div>
+
 <header>
   <div class="logo">Daily Dashboard</div>
   <div class="header-right">
@@ -203,6 +280,105 @@
 </div>
 
 <script>
+/* ── PIN logic ── */
+const PIN_KEY = 'dd_pin_hash';
+let pinBuffer = '';
+let pinMode   = 'unlock'; // 'unlock' | 'set' | 'confirm'
+let pinPending = '';
+
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+function pinUpdateDots() {
+  for (let i = 0; i < 4; i++)
+    document.getElementById(`d${i}`).classList.toggle('filled', i < pinBuffer.length);
+}
+
+function pinSetError(msg) { document.getElementById('pin-error').textContent = msg; }
+
+function pinKey(k) {
+  if (k === 'del') { pinBuffer = pinBuffer.slice(0, -1); pinSetError(''); }
+  else if (k === 'ok') { pinSubmit(); return; }
+  else if (pinBuffer.length < 4) pinBuffer += k;
+  pinUpdateDots();
+  if (pinBuffer.length === 4) pinSubmit();
+}
+
+async function pinSubmit() {
+  if (pinBuffer.length < 4) { pinSetError('Enter a 4-digit PIN'); return; }
+  const hash = await sha256(pinBuffer);
+
+  if (pinMode === 'set') {
+    pinPending = hash;
+    pinBuffer  = '';
+    pinUpdateDots();
+    pinSetError('');
+    document.getElementById('pin-title').textContent = 'Confirm PIN';
+    document.getElementById('pin-sub').textContent   = 'Enter the same PIN again';
+    document.getElementById('pin-change-btn').style.display = 'none';
+    pinMode = 'confirm';
+    return;
+  }
+
+  if (pinMode === 'confirm') {
+    if (hash !== pinPending) {
+      pinBuffer = ''; pinUpdateDots(); pinSetError("PINs don't match — try again");
+      pinMode   = 'set';
+      pinPending = '';
+      document.getElementById('pin-title').textContent = 'Set a PIN';
+      document.getElementById('pin-sub').textContent   = 'Choose a 4-digit PIN';
+      return;
+    }
+    localStorage.setItem(PIN_KEY, hash);
+    pinUnlock();
+    return;
+  }
+
+  // unlock mode
+  const stored = localStorage.getItem(PIN_KEY);
+  if (hash === stored) { pinUnlock(); return; }
+  pinBuffer = ''; pinUpdateDots(); pinSetError('Incorrect PIN');
+}
+
+function pinUnlock() {
+  document.getElementById('pin-screen').style.display = 'none';
+  loadTasks();
+}
+
+function pinStartChange() {
+  pinBuffer  = '';
+  pinPending = '';
+  pinMode    = 'set';
+  pinUpdateDots();
+  pinSetError('');
+  document.getElementById('pin-title').textContent = 'Set a new PIN';
+  document.getElementById('pin-sub').textContent   = 'Choose a 4-digit PIN';
+  document.getElementById('pin-change-btn').style.display = 'none';
+}
+
+function pinInit() {
+  const stored = localStorage.getItem(PIN_KEY);
+  if (!stored) {
+    pinMode = 'set';
+    document.getElementById('pin-title').textContent = 'Set your PIN';
+    document.getElementById('pin-sub').textContent   = 'Choose a 4-digit PIN to protect your dashboard';
+    document.getElementById('pin-change-btn').style.display = 'none';
+  }
+}
+
+// keyboard support
+document.addEventListener('keydown', e => {
+  if (document.getElementById('pin-screen').style.display === 'none') return;
+  if (e.key >= '0' && e.key <= '9') pinKey(e.key);
+  else if (e.key === 'Backspace') pinKey('del');
+  else if (e.key === 'Enter') pinKey('ok');
+});
+
+pinInit();
+
+/* ── Dashboard logic ── */
 const REPO = 'Silentaurus-jl/daily-dashboard';
 const RAW  = `https://raw.githubusercontent.com/${REPO}/main/tasks.json`;
 
@@ -302,8 +478,10 @@ async function loadTasks() {
 document.getElementById('current-date').textContent =
   new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-loadTasks();
-setInterval(loadTasks, 5 * 60 * 1000);
+// loadTasks() is called by pinUnlock() once PIN is verified
+setInterval(() => {
+  if (document.getElementById('pin-screen').style.display === 'none') loadTasks();
+}, 5 * 60 * 1000);
 </script>
 </body>
 </html>
