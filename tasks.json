@@ -1,4 +1,5 @@
 {
+  "password_hash": null,
   "tasks": [
     {
       "id": "welcome-001",

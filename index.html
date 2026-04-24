@@ -261,61 +261,26 @@
 
 <script>
 /* ── Password logic ── */
-const PIN_KEY = 'dd_pin_hash';
-let pinMode   = 'unlock'; // 'unlock' | 'set' | 'confirm'
-let pwPending = '';
+// Hash is stored in tasks.json on GitHub — shared across all devices.
+// Use scripts/set_password.py (via Claude) to set or change the password.
+let storedHash = null;
 
 async function sha256(str) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
 }
 
-function pwInput()    { return document.getElementById('pw-input'); }
+function pwInput()        { return document.getElementById('pw-input'); }
 function pinSetError(msg) { document.getElementById('pin-error').textContent = msg; }
-
-function pwClear(placeholder) {
-  const el = pwInput();
-  el.value = '';
-  if (placeholder) el.placeholder = placeholder;
-  el.focus();
-}
 
 async function pinSubmit() {
   const val = pwInput().value;
-  if (!val) { pinSetError('Please enter a password'); return; }
-  if (val.length < 4) { pinSetError('Password must be at least 4 characters'); return; }
+  if (!val) { pinSetError('Please enter your password'); return; }
   pinSetError('');
   const hash = await sha256(val);
-
-  if (pinMode === 'set') {
-    pwPending = hash;
-    pwClear('Confirm password');
-    document.getElementById('pin-title').textContent = 'Confirm password';
-    document.getElementById('pin-sub').textContent   = 'Enter the same password again';
-    document.getElementById('pw-input').autocomplete = 'new-password';
-    document.getElementById('pin-change-btn').style.display = 'none';
-    pinMode = 'confirm';
-    return;
-  }
-
-  if (pinMode === 'confirm') {
-    if (hash !== pwPending) {
-      pwPending = '';
-      pwClear('Password');
-      pinSetError("Passwords don't match — start again");
-      document.getElementById('pin-title').textContent = 'Set a password';
-      document.getElementById('pin-sub').textContent   = 'Choose a password to protect your dashboard';
-      pinMode = 'set';
-      return;
-    }
-    localStorage.setItem(PIN_KEY, hash);
-    pinUnlock();
-    return;
-  }
-
-  // unlock mode
-  if (hash === localStorage.getItem(PIN_KEY)) { pinUnlock(); return; }
-  pwClear('Password');
+  if (hash === storedHash) { pinUnlock(); return; }
+  pwInput().value = '';
+  pwInput().focus();
   pinSetError('Incorrect password');
 }
 
@@ -324,29 +289,35 @@ function pinUnlock() {
   loadTasks();
 }
 
-function pinStartChange() {
-  pwPending = '';
-  pinMode   = 'set';
-  pwClear('New password');
-  pinSetError('');
-  document.getElementById('pin-title').textContent = 'Set a new password';
-  document.getElementById('pin-sub').textContent   = 'Choose a password to protect your dashboard';
-  document.getElementById('pw-input').autocomplete = 'new-password';
-  document.getElementById('pin-change-btn').style.display = 'none';
-}
+function pinStartChange() { /* handled via Claude — see scripts/set_password.py */ }
 
-function pinInit() {
-  if (!localStorage.getItem(PIN_KEY)) {
-    pinMode = 'set';
-    document.getElementById('pin-title').textContent = 'Set a password';
-    document.getElementById('pin-sub').textContent   = 'Choose a password to protect your dashboard';
-    document.getElementById('pw-input').autocomplete = 'new-password';
-    document.getElementById('pin-change-btn').style.display = 'none';
+async function pinInit() {
+  try {
+    const res  = await fetch(RAW + '?t=' + Date.now());
+    const data = await res.json();
+    storedHash = data.password_hash || null;
+  } catch {
+    storedHash = null;
   }
+
+  if (!storedHash) {
+    // No password set — show instructions and let the user in
+    document.getElementById('pin-title').textContent = 'No password set';
+    document.getElementById('pin-sub').textContent   = 'Ask Claude to run scripts/set_password.py to protect your dashboard.';
+    document.getElementById('pw-input').style.display        = 'none';
+    document.getElementById('pin-error').style.display       = 'none';
+    document.getElementById('pin-change-btn').style.display  = 'none';
+    const btn = document.querySelector('.pw-submit');
+    btn.textContent = 'Continue without password';
+    btn.onclick = pinUnlock;
+    return;
+  }
+
+  document.getElementById('pin-change-btn').textContent = 'Change password via Claude';
+  document.getElementById('pin-change-btn').onclick = () =>
+    alert('To change your password, ask Claude:\n"Change my dashboard password"');
   pwInput().focus();
 }
-
-pinInit();
 
 /* ── Dashboard logic ── */
 const REPO = 'Silentaurus-jl/daily-dashboard';
@@ -448,7 +419,9 @@ async function loadTasks() {
 document.getElementById('current-date').textContent =
   new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-// loadTasks() is called by pinUnlock() once PIN is verified
+pinInit();
+
+// loadTasks() is called by pinUnlock() once password is verified
 setInterval(() => {
   if (document.getElementById('pin-screen').style.display === 'none') loadTasks();
 }, 5 * 60 * 1000);
