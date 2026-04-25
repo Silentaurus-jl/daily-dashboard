@@ -1,24 +1,22 @@
 {
-    "password_hash":  "6ad458c994ace28b1b1029b9028077718208648187b02de2e65574a7d96b143b",
-    "tasks":  [
-                  {
-                      "id":  "welcome-001",
-                      "title":  "Welcome to Daily Dashboard!",
-                      "category":  "reminder",
-                      "created":  "2026-04-24",
-                      "expires":  "2026-05-01",
-                      "description":  "Your dashboard is ready. Ask Claude to add tasks anytime."
-                  },
-                  {
-                      "id":  "1777067439202",
-                      "title":  "Prepare for OUP interview",
-                      "category":  "work",
-                      "created":  "2026-04-24",
-                      "expires":  "2026-04-28",
-                      "description":  ""
-                  }
-              ],
-    "expired":  [
-
-                ]
+  "password_hash": "6ad458c994ace28b1b1029b9028077718208648187b02de2e65574a7d96b143b",
+  "tasks": [
+    {
+      "id": "welcome-001",
+      "title": "Welcome to Daily Dashboard!",
+      "category": "reminder",
+      "created": "2026-04-24",
+      "expires": "2026-05-01",
+      "description": "Your dashboard is ready. Ask Claude to add tasks anytime."
+    },
+    {
+      "id": "1777067439202",
+      "title": "Prepare for OUP interview",
+      "category": "work",
+      "created": "2026-04-24",
+      "expires": "2026-04-28",
+      "description": ""
+    }
+  ],
+  "expired": []
 }
