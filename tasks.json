@@ -8,7 +8,9 @@
       "created": "2026-04-24",
       "expires": "2026-05-01",
       "description": "Your dashboard is ready. Ask Claude to add tasks anytime."
-    },
+    }
+  ],
+  "expired": [
     {
       "id": "1777067439202",
       "title": "Prepare for OUP interview",
@@ -17,6 +19,5 @@
       "expires": "2026-04-28",
       "description": ""
     }
-  ],
-  "expired": []
+  ]
 }
